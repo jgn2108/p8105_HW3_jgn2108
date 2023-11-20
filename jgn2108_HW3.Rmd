@@ -1,0 +1,309 @@
+---
+title: "HW3"
+author: "Jordan G. Nestor"
+output: github_document
+---
+
+
+
+```{r setup, include=FALSE}
+#install.packages("ggridges")
+#install.packages("tibble")
+library(tibble)
+library(tidyverse)
+library(ggridges)
+library(patchwork)
+library(ggplot2)
+library(tidyr)
+
+#library(p8105.datasets)
+#data("instacart")
+
+knitr::opts_chunk$set(
+	echo = TRUE,
+	warning = FALSE,
+	fig.width = 8, 
+  fig.height = 6,
+  out.width = "90%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+```
+
+##Problem 1, reading in instacart dataset
+```{r}
+#data("instacart")
+#instacart = 
+#  instacart |> 
+#  as_tibble()
+```
+
+This dataset comprises r nrow(instacart) rows and r ncol(instacart) columns. Each row corresponds to a single product within an Instacart order. The variables include identifiers for the user, order, and product, as well as info about the order sequence in which each product was added to the cart.I believe the Number of aisles=134 w/ fruits/veg
+
+#Using piping to count occurrences of each unique value in the 'aisle' column and arrange in descending order
+```{r}
+#result <- instacart %>%
+#  count(aisle) %>%
+#  arrange(desc(n))
+```
+Problem 1 is going poorly...i can't see the dataset unless I use a seperate script, moving on to problem 2
+
+##Problem 2, using BRFSS data ("brfss_smart2010")
+```{r}
+BRFSS_data = read_csv(file = "/Users/jgn/Desktop/P8105/HW3/HW3/Behavioral_Risk_Factors__Selected_Metropolitan_Area_Risk_Trends__SMART__County_Prevalence_Data__2010_and_prior_.csv")
+```
+
+#Data cleaning (1)
+```{r}
+BRFSS_data
+```
+```{r}
+#install.packages("janitor")
+library(janitor)
+BRFSS_data = janitor::clean_names(BRFSS_data)
+names(BRFSS_data)
+```
+
+#Data cleaning (2)
+```{r}
+#install.packages(c("magrittr", "dplyr"))
+library(magrittr)
+library(dplyr)
+
+# Convert tibble to data frame
+BRFSS_df <- as.data.frame(BRFSS_data)
+summary(BRFSS_df)
+str(BRFSS_df)
+
+# Clean variable names
+BRFSS_df <- BRFSS_df %>%
+  clean_names()
+str(BRFSS_df)
+
+# Focus on the "Overall Health" topic
+BRFSS_df <- BRFSS_df %>%
+  dplyr::filter(topic == "Overall Health")
+BRFSS_df <- BRFSS_df %>%
+  dplyr::filter(response %in% c("Excellent", "Very good", "Good", "Fair", "Poor"))
+BRFSS_df$response <- factor(
+  BRFSS_df$response,
+  levels = c("Poor", "Fair", "Good", "Very good", "Excellent"),
+  ordered = TRUE
+)
+str(BRFSS_df)
+
+```
+
+```{r}
+BRFSS_df
+```
+
+#In 2002, which states were observed at 7 or more locations? What about in 2010?
+```{r}
+# Filter data for the years 2002 and 2010
+states_observed_2002 <- BRFSS_df %>%
+  filter(year == 2002) %>%
+  group_by(locationdesc) %>%
+  filter(n() >= 7) %>%
+  pull(locationdesc)
+
+states_observed_2010 <- BRFSS_df %>%
+  filter(year == 2010) %>%
+  group_by(locationdesc) %>%
+  filter(n() >= 7) %>%
+  pull(locationdesc)
+
+# Print the results along with some debugging information
+cat("States observed at 7 or more locations in 2002:", ifelse(length(states_observed_2002) > 0, paste(states_observed_2002, collapse = ", "), "None"), "\n")
+cat("States observed at 7 or more locations in 2010:", ifelse(length(states_observed_2010) > 0, paste(states_observed_2010, collapse = ", "), "None"), "\n")
+
+```
+States observed at 7 or more locations in 2002: None 
+States observed at 7 or more locations in 2010: None 
+
+#Construct a dataset that is limited to Excellent responses, and contains, year, state, and a variable that averages the data_value across locations within a state. Make a “spaghetti” plot of this average value over time within a state (that is, make a plot showing a line for each state across years – the geom_line geometry and group aesthetic will help).
+```{r}
+# Filter for Excellent responses
+excellent_data <- BRFSS_df %>%
+  filter(response == "Excellent") %>%
+  group_by(year, locationdesc) %>%
+  summarize(average_data_value = mean(data_value, na.rm = TRUE))
+
+# Spaghetti plot
+library(ggplot2)
+ggplot(excellent_data, aes(x = year, y = average_data_value, group = locationdesc, color = locationdesc)) +
+  geom_line() +
+  labs(title = "Average Data Value for Excellent Responses Over Time",
+       x = "Year", y = "Average Data Value") +
+  theme_minimal()
+
+```
+
+# Make a two-panel plot showing, for the years 2006, and 2010, distribution of data_value for responses (“Poor” to “Excellent”) among locations in NY State.
+```{r}
+# Filter data for NY State in the years 2006 and 2010
+ny_data <- BRFSS_df %>%
+  filter(locationabbr == "NY" & year %in% c(2006, 2010))
+
+# Two-panel plot
+ggplot(ny_data, aes(x = response, y = data_value, fill = response)) +
+  geom_boxplot() +
+  facet_wrap(~ year, scales = "free_y") +
+  labs(title = "Distribution of Data Value for Responses in NY State (2006 and 2010)",
+       x = "Response", y = "Data Value") +
+  theme_minimal()
+```
+
+##Problem 3
+```{r}
+# Read in the data and clean variable names
+library(janitor)
+
+# Read accelerometer data
+nhanes_accel_df <- read_csv(file = "/Users/jgn/Desktop/P8105/HW3/HW3/nhanes_accel.csv") %>%
+  janitor::clean_names()
+
+# Read demographic data, skipping the first 4 rows
+nhanes_covar_df <- read_csv(file = "/Users/jgn/Desktop/P8105/HW3/HW3/nhanes_covar.csv", skip = 4) %>%
+  janitor::clean_names()
+```
+
+#merge dfs
+```{r}
+# Assuming 'seqn' is the common column for merging
+merged_data <- merge(nhanes_accel_df, nhanes_covar_df, by.x = "seqn", by.y = "seqn", all = TRUE)
+
+merged_data
+
+str(merged_data)
+```
+
+#make sex and education into factors
+```{r}
+# Make sex and education into factor variables
+merged_data <- merged_data %>%
+  mutate(sex = factor(sex, levels = c(1, 2), labels = c("Male", "Female")),
+         education = factor(education, levels = c(1, 2, 3), labels = c("Less than high school", "High school equivalent", "More than high school")))
+```
+
+#reorder columns
+```{r}
+#reorder columns
+merged_data <- merged_data %>%
+  select(1, 1442:1445, 2:1441)
+
+# Remove observations with missing data
+merged_data <- na.omit(merged_data) #from 250 obervations, 229 obervations kept because all obervations with missing data were removed
+```
+
+#remove participants < 21yo
+```{r}
+# Exclude participants less than 21 years of age
+merged_data <- subset(merged_data, age >= 21)
+```
+
+#Table
+```{r}
+# Create a table for the number of males and females in each education category
+gender_education_table <- table(merged_data$sex, merged_data$education)
+
+# Display the table
+gender_education_table
+```
+        
+         Less than high school High school equivalent More than high school
+  Male                      27                     35                    56
+  Female                    28                     23                    59
+
+#Box plot
+```{r}
+# Create a bar plot for the number of males and females in each education category
+bar_plot <- ggplot(merged_data, aes(x = as.factor(education), fill = as.factor(sex))) +
+  geom_bar(position = "dodge", color = "black", stat = "count") +
+  labs(title = "Number of Males and Females in Each Education Category",
+       x = "Education Category",
+       y = "Count",
+       fill = "Sex") +
+  scale_fill_manual(values = c("1" = "blue", "2" = "pink"))  # You can customize colors if needed
+
+# Display the bar plot
+print(bar_plot)
+
+# Create a box plot for the age distributions for men and women in each education category
+box_plot <- ggplot(merged_data, aes(x = as.factor(education), y = age, fill = as.factor(sex))) +
+  geom_boxplot() +
+  labs(title = "Age Distributions for Men and Women in Each Education Category",
+       x = "Education Category",
+       y = "Age",
+       fill = "Sex") +
+  scale_fill_manual(values = c("1" = "blue", "2" = "pink"))  # You can customize colors if needed
+
+# Display the box plot
+print(box_plot)
+```
+
+#Aggregate data
+```{r}
+# Aggregate across minutes to create a total activity variable for each participant, using a variable named "total_activity"
+merged_data <- merged_data %>%
+  group_by(seqn, sex, age, education) %>%
+  summarize(total_activity = sum(min1:min1440, na.rm = TRUE))
+```
+
+#Create a plot comparing males to females with separate panels for each education level:
+```{r}
+# Convert education to a factor with custom levels
+merged_data$education <- factor(merged_data$education, levels = c("Less than high school", "High school equivalent", "More than high school"))
+
+# Create the plot
+plot <- ggplot(merged_data, aes(x = age, y = total_activity, color = sex)) +
+  geom_point() +
+  facet_wrap(~ education, scales = "free_y") +
+  labs(title = "Total Activity vs Age by Sex and Education",
+       x = "Age",
+       y = "Total Activity") +
+  theme_minimal()
+
+# Display the plot
+print(plot)
+```
+
+#Add trend line
+```{r}
+plot + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Activity vs. Age",
+       x = "Age",
+       y = "Total Activity")
+```
+The trend lines by age, and sex versus total activity in 3 panels according to education are nice but i do not know what to infer from it
+
+#create a three-panel plot showing the 24-hour activity time courses for each education level with color indicating sex
+```{r}
+library(tidyr)
+#melt data 
+melted_data <- merged_data %>%
+pivot_longer(cols = starts_with("min"), 
+             names_to = "Minute", 
+             values_to = "Activity")
+
+# education levels already stored as a factor
+melted_data$education <- factor(melted_data$education)
+
+# Create a three-panel plot
+ggplot(melted_data, aes(x = Minute, y = Activity, color = sex)) +
+  geom_line() +
+  facet_wrap(~education, scales = "free_y", ncol = 1) +
+  labs(title = "24-hour Activity Time Courses by Education Level",
+       x = "Minute of the Day",
+       y = "Activity") +
+  theme_minimal()
+```
+Once again this 3 panel plot is gorgeous but all I can infer across all 3 is that female (green) and male (organge) distubutions of obervsations across 24hrs overlap, except for noticeable higher peaks for males in more than high school level of education. 
+
